@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}IP Tracker — snapshots{% endblock %}
+{% block content %}
+<h1>Routing snapshots</h1>
+<p class="lede">Explore IP prefix origins and how they change over time.</p>
+{% if snapshots %}<div class="cards">
+{% for row in snapshots %}<article><h2>{{ row.snapshot_date }}</h2><dl><dt>Announcements</dt><dd>{{ "{:,}".format(row.announcements) }}</dd><dt>Known ASNs</dt><dd>{{ "{:,}".format(row.asns) }}</dd><dt>Imported</dt><dd>{{ row.imported_at.strftime('%Y-%m-%d %H:%M UTC') }}</dd></dl><a href="{{ url_for('asn_list', snapshot=row.snapshot_date) }}">Browse snapshot →</a></article>{% endfor %}
+</div>{% else %}<div class="empty">No data has been imported yet. Run <code>python importer.py …</code>.</div>{% endif %}
+{% endblock %}
+

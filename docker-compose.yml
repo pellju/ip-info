@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: iptracker
+      POSTGRES_USER: iptracker
+      POSTGRES_PASSWORD: iptracker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iptracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://iptracker:iptracker@db/iptracker
+    ports: ["8000:8000"]
+    volumes:
+      - ./:/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres_data:

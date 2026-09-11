@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}IP lookup — IP Tracker{% endblock %}
+{% block content %}<h1>IP address lookup</h1>
+<form class="lookup" method="get"><input autofocus name="address" value="{{ address }}" placeholder="2001:db8::1 or 192.0.2.1" required>
+<select name="snapshot">{% for snap in all_snapshots %}<option value="{{ snap.snapshot_date }}" {% if selected and snap.snapshot_date == selected.snapshot_date %}selected{% endif %}>{{ snap.snapshot_date }}</option>{% endfor %}</select><button>Look up</button></form>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if routes is not none %}{% if routes %}<h2>Matching routes <small>{{ selected.snapshot_date }}</small></h2><p>Most-specific prefix is shown first. Multiple rows can indicate a multi-origin route.</p>
+<table><thead><tr><th>Prefix</th><th>Origin</th><th>Name</th><th>Country</th><th>Class</th></tr></thead><tbody>{% for row in routes %}<tr><td><a href="{{ url_for('block_detail', prefix=row.prefix) }}"><code>{{ row.prefix }}</code></a></td><td><a href="{{ url_for('asn_detail', asn=row.asn, snapshot=selected.snapshot_date) }}">AS{{ row.asn }}</a></td><td>{{ row.name or 'Unknown ASN' }}</td><td>{{ row.country_code or '—' }}</td><td>{{ row.class or '—' }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<div class="empty">No announced block contains this address in the selected snapshot.</div>{% endif %}{% endif %}{% endblock %}
