@@ -44,12 +44,32 @@ docker compose exec web python importer.py \
   /data/asns-16-06-2026.csv
 ```
 
+To scan the entire directory and import every new matched pair, run:
+
+```bash
+docker compose exec web python import_all.py /data
+```
+
+The batch importer validates that every recognized table file has a same-date ASN file (and vice versa) before it starts. It sorts pairs from oldest to newest, skips dates already stored in PostgreSQL, and imports only new dates. Files unrelated to the naming patterns are ignored. This makes the normal update workflow:
+
+1. Copy new `table-...txt` and `asns-...csv` files into `imports/`.
+2. Run `docker compose exec web python import_all.py /data`.
+
+No container restart is necessary when adding files to the bind-mounted directory.
+
 With a local installation, the files can be in any location readable by the user running the importer. Pass either relative or absolute paths:
 
 ```bash
 python importer.py \
   /srv/ip-data/table-16-06-2026.txt \
   /srv/ip-data/asns-16-06-2026.csv
+```
+
+For a local batch import, the directory defaults to `imports`, so either of these works:
+
+```bash
+python import_all.py
+python import_all.py /srv/ip-data
 ```
 
 The import command connects to the same PostgreSQL database as the web application through `DATABASE_URL` (or through `--dsn`). The running web application does not need to be restarted after an import.

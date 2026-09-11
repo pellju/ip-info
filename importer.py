@@ -15,6 +15,9 @@ DATE_RE = re.compile(r"(?:table|asns)-(\d{2})-(\d{2})-(\d{2}|\d{4})\.(?:txt|csv)
 
 
 def date_from_filename(path: Path) -> date:
+    if not ((path.name.startswith("table-") and path.suffix == ".txt") or
+            (path.name.startswith("asns-") and path.suffix == ".csv")):
+        raise ValueError(f"cannot extract date from {path.name!r}")
     match = DATE_RE.fullmatch(path.name)
     if not match:
         raise ValueError(f"cannot extract date from {path.name!r}")
@@ -66,6 +69,37 @@ def asn_rows(path: Path):
                 )
             except (ValueError, TypeError) as exc:
                 raise ValueError(f"{path}:{line_number}: {exc}") from exc
+
+
+def snapshot_pairs(directory: Path):
+    """Return validated (date, table path, ASN path) pairs in date order."""
+    if not directory.is_dir():
+        raise ValueError(f"not a directory: {directory}")
+    tables, asns = {}, {}
+    for path in directory.iterdir():
+        if not path.is_file():
+            continue
+        try:
+            snapshot_date = date_from_filename(path)
+        except ValueError:
+            continue
+        target = tables if path.name.startswith("table-") else asns
+        if snapshot_date in target:
+            raise ValueError(
+                f"multiple {path.name.split('-', 1)[0]} files for {snapshot_date}: "
+                f"{target[snapshot_date].name} and {path.name}"
+            )
+        target[snapshot_date] = path
+    missing_asns = sorted(set(tables) - set(asns))
+    missing_tables = sorted(set(asns) - set(tables))
+    if missing_asns or missing_tables:
+        problems = []
+        if missing_asns:
+            problems.append("missing ASN CSV for " + ", ".join(map(str, missing_asns)))
+        if missing_tables:
+            problems.append("missing table TXT for " + ", ".join(map(str, missing_tables)))
+        raise ValueError("; ".join(problems))
+    return [(day, tables[day], asns[day]) for day in sorted(tables)]
 
 
 def import_snapshot(dsn: str, blocks: Path, asns: Path, replace: bool = False) -> None:

@@ -3,7 +3,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from importer import asn_rows, block_rows, date_from_filename, parse_asn
+from importer import asn_rows, block_rows, date_from_filename, parse_asn, snapshot_pairs
 
 
 class ImportParsingTests(unittest.TestCase):
@@ -26,6 +26,22 @@ class ImportParsingTests(unittest.TestCase):
             path = Path(directory) / "asns-01-01-2026.csv"
             path.write_text('asn,name,class,cc\nAS10,"Example, Inc.",Content,us\n')
             self.assertEqual(list(asn_rows(path)), [(10, "Example, Inc.", "Content", "US")])
+
+    def test_snapshot_pairs_are_sorted_and_unrelated_files_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("table-02-01-2026.txt", "asns-02-01-2026.csv",
+                         "table-01-01-26.txt", "asns-01-01-26.csv", "notes.md"):
+                (root / name).touch()
+            pairs = snapshot_pairs(root)
+            self.assertEqual([item[0] for item in pairs], [date(2026, 1, 1), date(2026, 1, 2)])
+
+    def test_snapshot_pairs_reject_an_unmatched_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "table-01-01-2026.txt").touch()
+            with self.assertRaisesRegex(ValueError, "missing ASN CSV"):
+                snapshot_pairs(root)
 
 
 if __name__ == "__main__":
