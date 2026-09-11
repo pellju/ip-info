@@ -435,4 +435,5 @@ def create_app(config: Optional[dict] = None) -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=os.getenv("FLASK_DEBUG") == "1")
+    app.run(host=os.getenv("HOST", "127.0.0.1"), port=8000,
+            debug=os.getenv("FLASK_DEBUG") == "1")

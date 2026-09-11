@@ -16,9 +16,9 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql://iptracker:iptracker@db/iptracker
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     volumes:
-      - ./:/data:ro
+      - ./imports:/data:ro
     depends_on:
       db:
         condition: service_healthy

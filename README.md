@@ -23,7 +23,7 @@ docker compose up -d --build
 docker compose exec web python importer.py /data/table-13-06-26.txt /data/asns-13-06-26.csv
 ```
 
-The included Compose file mounts the project directory read-only at `/data`, so input files in this directory are visible to the importer. The site is then available at <http://localhost:8000>.
+The included Compose file mounts the project's `imports/` directory read-only inside the container at `/data`. Port 8000 is published on `127.0.0.1` only, making the site available at <http://localhost:8000> from the same machine without exposing it on external network interfaces.
 
 ## Import new snapshots
 
@@ -34,14 +34,14 @@ Each snapshot consists of two files with the same date:
 
 Two-digit years, such as `table-16-06-26.txt`, are also accepted. You do not need a special system folder.
 
-With Docker, place the files anywhere under this project directory. The directory is mounted inside the web container as `/data`. For example, files placed in an `imports` subdirectory can be imported with:
+With Docker, place the files in the project's `imports/` directory. That directory is mounted inside the web container as `/data`:
 
 ```bash
 mkdir -p imports
 # Copy table-16-06-2026.txt and asns-16-06-2026.csv into imports/, then run:
 docker compose exec web python importer.py \
-  /data/imports/table-16-06-2026.txt \
-  /data/imports/asns-16-06-2026.csv
+  /data/table-16-06-2026.txt \
+  /data/asns-16-06-2026.csv
 ```
 
 With a local installation, the files can be in any location readable by the user running the importer. Pass either relative or absolute paths:
@@ -68,8 +68,8 @@ To intentionally correct or replace that date, rerun the command with `--replace
 
 ```bash
 docker compose exec web python importer.py \
-  /data/imports/table-16-06-2026.txt \
-  /data/imports/asns-16-06-2026.csv \
+  /data/table-16-06-2026.txt \
+  /data/asns-16-06-2026.csv \
   --replace
 ```
 
@@ -147,15 +147,17 @@ python3 -m venv .venv
 pip install -r requirements.txt
 createdb iptracker
 export DATABASE_URL=postgresql:///iptracker
-python importer.py table-13-06-26.txt asns-13-06-26.csv
-python importer.py table-14-06-26.txt asns-14-06-26.csv
+python importer.py imports/table-13-06-26.txt imports/asns-13-06-26.csv
+python importer.py imports/table-14-06-26.txt imports/asns-14-06-26.csv
 flask --app app run --port 8000
 ```
+
+Both Docker Compose and the direct Python development server default to localhost-only access. If external access is intentionally required, configure an authenticated TLS reverse proxy, or explicitly change the Compose port binding and review the production security notes first.
 
 The importer accepts both two- and four-digit years. A pair must carry the same date. Imports are transactional and protected by a PostgreSQL advisory lock, so a failed parse leaves no partial snapshot. Exact duplicate input rows are ignored. Use `--replace` to atomically replace the latest imported date.
 
 ```bash
-python importer.py table-15-06-26.txt asns-15-06-26.csv --dsn "$DATABASE_URL"
+python importer.py imports/table-15-06-26.txt imports/asns-15-06-26.csv --dsn "$DATABASE_URL"
 ```
 
 The initial import creates the schema automatically. Import snapshots in chronological order. Prefix files contain whitespace-separated `CIDR ASN` rows. ASN CSV files require the columns `asn,name,class,cc`.

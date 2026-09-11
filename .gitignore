@@ -1,4 +1,6 @@
 *.txt
 !requirements.txt
 *.csv
+imports/*
+!imports/.gitkeep
 .env
