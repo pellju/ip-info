@@ -57,6 +57,26 @@ The batch importer validates that every recognized table file has a same-date AS
 
 No container restart is necessary when adding files to the bind-mounted directory.
 
+### Daily cron import
+
+The repository includes `scripts/import_daily.sh`, a cron-safe wrapper around the batch importer. It scans the bind-mounted `imports/` directory, skips dates already in PostgreSQL, and imports new complete pairs in chronological order. A non-blocking `flock` lock prevents overlapping cron runs, and `docker compose exec -T` avoids allocating a terminal.
+
+Make sure the script is executable, then test it interactively:
+
+```bash
+docker compose up -d --build web
+chmod +x scripts/import_daily.sh
+./scripts/import_daily.sh
+```
+
+Open your user crontab with `crontab -e` and add a line like the following, replacing the project path with its absolute location:
+
+```cron
+15 3 * * * /home/juho/temp/ip-tracker/scripts/import_daily.sh >> /home/juho/temp/ip-tracker/import-daily.log 2>&1
+```
+
+This example runs every day at 03:15 in the cron daemon's local timezone. The user running the job must have permission to access Docker (usually through membership in the `docker` group), and the `web` and `db` services must already be running. Cron only performs the database import; obtaining or copying the daily files into `imports/` remains a separate step. If one half of a dated pair is missing, the batch validation fails without importing any later pairs and the error is written to the log.
+
 With a local installation, the files can be in any location readable by the user running the importer. Pass either relative or absolute paths:
 
 ```bash
