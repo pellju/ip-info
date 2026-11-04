@@ -66,12 +66,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
     @app.get("/")
     def index():
         latest = db().execute(
-            "SELECT s.snapshot_date,s.imported_at,"
-            "(SELECT count(*) FROM route_versions r WHERE r.valid_from<=s.snapshot_date "
-            " AND (r.valid_until IS NULL OR r.valid_until>s.snapshot_date)) AS announcements,"
-            "(SELECT count(*) FROM asn_versions d WHERE d.valid_from<=s.snapshot_date "
-            " AND (d.valid_until IS NULL OR d.valid_until>s.snapshot_date)) AS asns "
-            "FROM snapshots s ORDER BY snapshot_date DESC"
+            "SELECT snapshot_date,imported_at FROM snapshots ORDER BY snapshot_date DESC"
         ).fetchall()
         return render_template("index.html", snapshots=latest)
 
