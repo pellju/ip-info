@@ -145,11 +145,13 @@ For a production database, take a PostgreSQL backup before changing the schema. 
 - <http://localhost:8000/block?prefix=2001:4860::/32> — history of an exact prefix
 - <http://localhost:8000/history> — recent additions, withdrawals, and origin changes
 
-The changes page is paginated and can be filtered by date range, exact prefix, ASN, and change type. Filters can also be placed directly in the URL, for example:
+The changes page is paginated and can be filtered by date range, exact prefix, change type, included/excluded ASNs, and included/excluded ASN countries. ASN and country fields accept comma- or space-separated values. Inclusion matches when at least one origin involved in the change is included; exclusion removes the row when any involved origin is excluded. Country matching uses the ASN metadata at the transition, including both sides when an ASN's country metadata itself changes. Filters can also be placed directly in the URL, for example:
 
 ```text
-http://localhost:8000/history?date_from=2026-06-13&date_to=2026-06-30&asn=15169&kind=changed
+http://localhost:8000/history?date_from=2026-06-13&asns_include=15169,64500&asns_exclude=64510&countries_include=FI,SE&countries_exclude=US&kind=changed
 ```
+
+The older single-value `asn=15169` parameter remains supported for bookmarks and API clients and behaves like `asns_include=15169`.
 
 Each ASN detail page also includes a paginated IP-block change timeline. It labels blocks as acquired or released by that ASN and identifies changes where the ASN remains present but the multi-origin set changes. The “Open full filtered history” link provides the date and change-type filters for deeper browsing.
 
@@ -163,7 +165,7 @@ curl 'http://localhost:8000/api/v1/ip/2001:4860:4860::8888?snapshot=2026-06-13'
 curl 'http://localhost:8000/api/v1/asns?q=Google&page=1&per_page=25'
 curl 'http://localhost:8000/api/v1/asns/15169?snapshot=2026-06-13'
 curl 'http://localhost:8000/api/v1/blocks/2001:4860::%2F32/history'
-curl 'http://localhost:8000/api/v1/changes?date_from=2026-06-13&asn=15169&kind=changed&page=1'
+curl 'http://localhost:8000/api/v1/changes?date_from=2026-06-13&asns_include=15169,64500&countries_exclude=US&kind=changed&page=1'
 ```
 
 Available endpoints:

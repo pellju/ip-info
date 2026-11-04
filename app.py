@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from datetime import date
 from typing import Optional
 
@@ -58,6 +59,54 @@ def create_app(config: Optional[dict] = None) -> Flask:
         if not row:
             abort(404, "No matching imported snapshot")
         return row
+
+    def parse_asn_list(value: str, field_name: str):
+        values = []
+        for item in filter(None, re.split(r"[\s,]+", value.strip())):
+            number = item.upper().removeprefix("AS")
+            if not number.isdigit():
+                abort(400, f"{field_name} must contain comma- or space-separated ASNs")
+            values.append(int(number))
+        return sorted(set(values))
+
+    def parse_country_list(value: str, field_name: str):
+        values = []
+        for item in filter(None, re.split(r"[\s,]+", value.strip())):
+            country = item.upper()
+            if len(country) != 2 or not country.isalpha():
+                abort(400, f"{field_name} must contain two-letter country codes")
+            values.append(country)
+        return sorted(set(values))
+
+    def add_origin_filters(where, params, filters, alias=""):
+        prefix = f"{alias}." if alias else ""
+        involved = f"({prefix}old_asns || {prefix}new_asns)"
+        included_asns = parse_asn_list(filters.get("asns_include", ""), "Included ASNs")
+        excluded_asns = parse_asn_list(filters.get("asns_exclude", ""), "Excluded ASNs")
+        included_countries = parse_country_list(
+            filters.get("countries_include", ""), "Included countries"
+        )
+        excluded_countries = parse_country_list(
+            filters.get("countries_exclude", ""), "Excluded countries"
+        )
+        if included_asns:
+            where.append(f"{involved} && %s::bigint[]")
+            params.append(included_asns)
+        if excluded_asns:
+            where.append(f"NOT ({involved} && %s::bigint[])")
+            params.append(excluded_asns)
+        country_sql = (
+            "SELECT 1 FROM asn_versions av WHERE av.asn=ANY(" + involved + ") "
+            f"AND av.valid_from<={prefix}snapshot_date "
+            f"AND (av.valid_until IS NULL OR av.valid_until>={prefix}snapshot_date) "
+            "AND av.country_code=ANY(%s::text[])"
+        )
+        if included_countries:
+            where.append(f"EXISTS ({country_sql})")
+            params.append(included_countries)
+        if excluded_countries:
+            where.append(f"NOT EXISTS ({country_sql})")
+            params.append(excluded_countries)
 
     @app.context_processor
     def common_context():
@@ -187,11 +236,15 @@ def create_app(config: Optional[dict] = None) -> Flask:
 
     @app.get("/history")
     def history():
+        legacy_asn = request.args.get("asn", "").strip()
         filters = {
             "date_from": request.args.get("date_from", "").strip(),
             "date_to": request.args.get("date_to", "").strip(),
             "prefix": request.args.get("prefix", "").strip(),
-            "asn": request.args.get("asn", "").strip(),
+            "asns_include": request.args.get("asns_include", legacy_asn).strip(),
+            "asns_exclude": request.args.get("asns_exclude", "").strip(),
+            "countries_include": request.args.get("countries_include", "").strip(),
+            "countries_exclude": request.args.get("countries_exclude", "").strip(),
             "kind": request.args.get("kind", "").strip(),
         }
         try:
@@ -216,13 +269,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
             filters["prefix"] = parsed_prefix
             where.append("prefix=%s::cidr")
             params.append(parsed_prefix)
-        if filters["asn"]:
-            asn_value = filters["asn"].upper().removeprefix("AS")
-            if not asn_value.isdigit():
-                abort(400, "ASN must be a number or use the AS123 form")
-            filters["asn"] = asn_value
-            where.append("(%s::bigint=ANY(old_asns) OR %s::bigint=ANY(new_asns))")
-            params.extend([int(asn_value), int(asn_value)])
+        add_origin_filters(where, params, filters)
         kind_sql = {
             "added": "cardinality(old_asns)=0",
             "withdrawn": "cardinality(new_asns)=0",
@@ -401,12 +448,14 @@ def create_app(config: Optional[dict] = None) -> Flask:
                 abort(400, "invalid IPv4 or IPv6 prefix")
             where.append("prefix=%s::cidr")
             params.append(prefix)
-        asn = request.args.get("asn", "").strip().upper().removeprefix("AS")
-        if asn:
-            if not asn.isdigit():
-                abort(400, "asn must be a number or use the AS123 form")
-            where.append("(%s::bigint=ANY(old_asns) OR %s::bigint=ANY(new_asns))")
-            params.extend([int(asn), int(asn)])
+        legacy_asn = request.args.get("asn", "").strip()
+        origin_filters = {
+            "asns_include": request.args.get("asns_include", legacy_asn).strip(),
+            "asns_exclude": request.args.get("asns_exclude", "").strip(),
+            "countries_include": request.args.get("countries_include", "").strip(),
+            "countries_exclude": request.args.get("countries_exclude", "").strip(),
+        }
+        add_origin_filters(where, params, origin_filters)
         kind = request.args.get("kind", "").strip()
         kinds = {"added": "cardinality(old_asns)=0", "withdrawn": "cardinality(new_asns)=0",
                  "changed": "cardinality(old_asns)>0 AND cardinality(new_asns)>0"}
